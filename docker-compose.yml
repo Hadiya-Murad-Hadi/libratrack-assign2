@@ -1,0 +1,38 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: libratrack_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: LibraDB2026Secure
+      MYSQL_DATABASE: libratrack
+    volumes:
+      - libratrack_data:/var/lib/mysql
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pLibraDB2026Secure"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: libratrack_app
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: LibraDB2026Secure
+      DB_NAME: libratrack
+      JWT_SECRET: change-this-to-a-long-random-secret
+      PORT: 8080
+    ports:
+      - "8301:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  libratrack_data:

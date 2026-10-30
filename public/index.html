@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>LibraTrack</title>
+    <style>
+      :root {
+        --bg: #f1f3f2;
+        --ink: #1b2a28;
+        --mute: #5d6b68;
+        --g: #0f4c45;
+        --g2: #e1ece9;
+        --red: #b3402a;
+        --line: #cfd8d5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #121917;
+          --ink: #e6eeec;
+          --mute: #93a39f;
+          --g: #5fb8a8;
+          --g2: #1c2b28;
+          --red: #ef8a73;
+          --line: #2e3d3a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+      }
+      header {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        align-items: center;
+        justify-content: space-between;
+        padding: 14px 5vw;
+        background: var(--g);
+        color: #fff;
+      }
+      h1,
+      h2 {
+        font-family: Georgia, serif;
+        margin: 0;
+      }
+      h1 {
+        font-size: 1.5rem;
+      }
+      h2 {
+        font-size: 1.3rem;
+        margin-bottom: 12px;
+      }
+      nav {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      nav span {
+        opacity: 0.85;
+        margin-right: 6px;
+      }
+      main {
+        max-width: 980px;
+        margin: 24px auto;
+        padding: 0 5vw;
+      }
+      button,
+      input {
+        font: inherit;
+        color: inherit;
+      }
+      input {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        background: transparent;
+        border-radius: 4px;
+        width: 100%;
+      }
+      button {
+        padding: 7px 14px;
+        border: 1px solid var(--g);
+        background: var(--g);
+        color: #fff;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      header button {
+        background: transparent;
+        border-color: #fff8;
+      }
+      header button.on {
+        background: #fff;
+        color: var(--g);
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--g);
+      }
+      button.del {
+        background: transparent;
+        color: var(--red);
+        border-color: var(--red);
+      }
+      :focus-visible {
+        outline: 3px solid #e0a11b;
+        outline-offset: 2px;
+      }
+      .cols {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 32px;
+      }
+      form {
+        display: grid;
+        gap: 10px;
+      }
+      label {
+        font-size: 0.9rem;
+        color: var(--mute);
+        display: grid;
+        gap: 3px;
+      }
+      .tw {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 10px 8px;
+        border-bottom: 1px solid var(--line);
+        vertical-align: middle;
+      }
+      th {
+        font-size: 0.85rem;
+        color: var(--mute);
+        font-weight: 600;
+      }
+      td.act {
+        white-space: nowrap;
+        text-align: right;
+      }
+      td.act button {
+        margin-left: 6px;
+      }
+      .stats {
+        display: flex;
+        gap: 28px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+        border-left: 4px solid var(--g);
+        padding-left: 14px;
+      }
+      .stats b {
+        font-size: 1.6rem;
+        font-family: Georgia, serif;
+        display: block;
+      }
+      .late {
+        color: var(--red);
+        font-weight: 600;
+      }
+      .ok {
+        color: var(--g);
+      }
+      .empty {
+        color: var(--mute);
+        padding: 20px 0;
+      }
+      details {
+        margin: 14px 0;
+        padding: 12px;
+        background: var(--g2);
+        border-radius: 4px;
+      }
+      summary {
+        cursor: pointer;
+        font-weight: 600;
+      }
+      #toast {
+        position: fixed;
+        bottom: 18px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: var(--bg);
+        padding: 10px 18px;
+        border-radius: 4px;
+        display: none;
+        max-width: 90vw;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>LibraTrack</h1>
+      <nav id="nav"></nav>
+    </header>
+    <main id="app"></main>
+    <div id="toast" role="status"></div>
+    <script>
+      let T = localStorage.t || "",
+        U = JSON.parse(localStorage.u || "null"),
+        view = "books",
+        Q = "";
+      const $ = (s) => document.querySelector(s),
+        esc = (s) =>
+          String(s ?? "").replace(
+            /[&<>"']/g,
+            (c) => "&#" + c.charCodeAt(0) + ";",
+          ),
+        d = (s) => new Date(s).toLocaleDateString();
+      function toast(m) {
+        const t = $("#toast");
+        t.textContent = m;
+        t.style.display = "block";
+        clearTimeout(t.h);
+        t.h = setTimeout(() => (t.style.display = "none"), 3500);
+      }
+      async function api(p, o = {}) {
+        const r = await fetch("/api/" + p, {
+          method: o.method || "GET",
+          headers: {
+            "Content-Type": "application/json",
+            ...(T && { Authorization: "Bearer " + T }),
+          },
+          body: o.body && JSON.stringify(o.body),
+        });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) {
+          if (r.status === 401 && T) logout();
+          throw new Error(j.error || "Request failed");
+        }
+        return j;
+      }
+      const run = async (f) => {
+        try {
+          await f();
+        } catch (e) {
+          toast(e.message);
+        }
+      };
+      function logout() {
+        T = "";
+        U = null;
+        localStorage.clear();
+        view = "books";
+        render();
+      }
+      function nav() {
+        $("#nav").innerHTML = U
+          ? `<span>${esc(U.name)} (${U.role})</span><button class="${view == "books" ? "on" : ""}" onclick="go('books')">Catalog</button><button class="${view == "loans" ? "on" : ""}" onclick="go('loans')">${U.role == "admin" ? "All loans" : "My loans"}</button><button onclick="logout()">Log out</button>`
+          : "";
+      }
+      const go = (v) => {
+        view = v;
+        render();
+      };
+      async function render() {
+        nav();
+        const a = $("#app");
+        if (!U) {
+          a.innerHTML = `<div class="cols"><section><h2>Log in</h2><form id="lf"><label>Email<input name="email" type="email" required></label><label>Password<input name="password" type="password" required></label><button>Log in</button></form><p class="empty">Demo librarian: admin@libratrack.com / Admin@123</p></section>
+ <section><h2>Create a member account</h2><form id="rf"><label>Full name<input name="name" required></label><label>Email<input name="email" type="email" required></label><label>Password (6+ characters)<input name="password" type="password" minlength="6" required></label><button>Register</button></form></section></div>`;
+          $("#lf").onsubmit = (e) => {
+            e.preventDefault();
+            auth("login", e.target);
+          };
+          $("#rf").onsubmit = (e) => {
+            e.preventDefault();
+            auth("register", e.target);
+          };
+          return;
+        }
+        run(view == "books" ? books : loans);
+      }
+      function auth(p, f) {
+        run(async () => {
+          const r = await api(p, {
+            method: "POST",
+            body: Object.fromEntries(new FormData(f)),
+          });
+          T = r.token;
+          U = r.user;
+          localStorage.t = T;
+          localStorage.u = JSON.stringify(U);
+          view = "books";
+          render();
+        });
+      }
+      async function books() {
+        const ad = U.role == "admin",
+          [bs, st] = await Promise.all([
+            api("books?q=" + encodeURIComponent(Q)),
+            ad ? api("stats") : null,
+          ]);
+        $("#app").innerHTML =
+          `${st ? `<div class="stats"><div><b>${st.books}</b>titles</div><div><b>${st.members}</b>members</div><div><b>${st.active}</b>on loan</div><div><b>${st.overdue}</b>overdue</div></div>` : ""}
+ <h2>Book catalog</h2><form id="sf" style="grid-template-columns:1fr auto"><input name="q" value="${esc(Q)}" placeholder="Search title, author or ISBN" aria-label="Search"><button>Search</button></form>
+ ${ad ? `<details><summary>Add a book</summary><form id="af"><label>Title<input name="title" required></label><label>Author<input name="author" required></label><label>ISBN<input name="isbn" required></label><label>Copies<input name="copies" type="number" min="1" value="1" required></label><button>Add book</button></form></details>` : ""}
+ <div class="tw"><table><thead><tr><th>Title</th><th>Author</th><th>ISBN</th><th>Available</th><th></th></tr></thead><tbody>
+ ${bs
+   .map(
+     (
+       b,
+     ) => `<tr><td>${esc(b.title)}</td><td>${esc(b.author)}</td><td>${esc(b.isbn)}</td><td class="${b.copies_available ? "ok" : "late"}">${b.copies_available} of ${b.copies_total}</td><td class="act">
+ ${ad ? `<button class="ghost" onclick="issueTo(${b.id})">Issue</button><button class="ghost" onclick="edit(${b.id},${b.copies_total})">Edit copies</button><button class="del" onclick="del(${b.id})">Delete</button>` : `<button ${b.copies_available ? "" : "disabled"} onclick="borrow(${b.id})">Borrow</button>`}</td></tr>`,
+   )
+   .join("")}</tbody></table></div>
+ ${bs.length ? "" : '<p class="empty">No books match your search. Try a different title, author or ISBN.</p>'}`;
+        $("#sf").onsubmit = (e) => {
+          e.preventDefault();
+          Q = e.target.q.value;
+          render();
+        };
+        if (ad)
+          $("#af").onsubmit = (e) => {
+            e.preventDefault();
+            run(async () => {
+              await api("books", {
+                method: "POST",
+                body: Object.fromEntries(new FormData(e.target)),
+              });
+              toast("Book added");
+              render();
+            });
+          };
+      }
+      const borrow = (id) =>
+        run(async () => {
+          await api("issues", { method: "POST", body: { book_id: id } });
+          toast("Borrowed. Due in 14 days");
+          render();
+        });
+      const del = (id) =>
+        confirm("Delete this book?") &&
+        run(async () => {
+          await api("books/" + id, { method: "DELETE" });
+          toast("Book deleted");
+          render();
+        });
+      const edit = (id, n) => {
+        const v = prompt("New total copies", n);
+        v &&
+          run(async () => {
+            await api("books/" + id, {
+              method: "PUT",
+              body: { copies_total: v },
+            });
+            toast("Copies updated");
+            render();
+          });
+      };
+      const issueTo = (id) =>
+        run(async () => {
+          const m = await api("members");
+          if (!m.length) return toast("No members registered yet");
+          const s = prompt(
+            "Member number:\n" +
+              m.map((x, i) => `${i + 1}. ${x.name} (${x.email})`).join("\n"),
+          );
+          if (!s || !m[s - 1]) return;
+          const days = prompt(
+            "Loan days (default 14; negative = already overdue, for testing fines)",
+            "14",
+          );
+          await api("issues", {
+            method: "POST",
+            body: { book_id: id, user_id: m[s - 1].id, loan_days: days },
+          });
+          toast("Book issued");
+          render();
+        });
+      async function loans() {
+        const ad = U.role == "admin",
+          ls = await api("issues");
+        $("#app").innerHTML = `<h2>${ad ? "All loans" : "My loans"}</h2>${
+          ls.length
+            ? `<div class="tw"><table><thead><tr><th>Book</th>${ad ? "<th>Member</th>" : ""}<th>Issued</th><th>Due</th><th>Status</th><th>Fine (Rs)</th><th></th></tr></thead><tbody>
+ ${ls
+   .map((l) => {
+     const late = !l.returned_at && new Date(l.due_date) < new Date();
+     return `<tr><td>${esc(l.title)}</td>${ad ? `<td>${esc(l.member_name)}</td>` : ""}<td>${d(l.issued_at)}</td><td>${d(l.due_date)}</td>
+ <td class="${l.returned_at ? "ok" : late ? "late" : ""}">${l.returned_at ? "Returned " + d(l.returned_at) : late ? "Overdue" : "On loan"}</td><td class="${l.fine > 0 ? "late" : ""}">${l.fine}</td>
+ <td class="act">${l.returned_at ? "" : `<button onclick="ret(${l.id})">Return</button>`}</td></tr>`;
+   })
+   .join("")}</tbody></table></div>`
+            : '<p class="empty">No loans yet. Borrow a book from the catalog.</p>'
+        }`;
+      }
+      const ret = (id) =>
+        run(async () => {
+          const r = await api(`issues/${id}/return`, { method: "POST" });
+          toast(
+            r.fine ? `Returned. Fine due: Rs ${r.fine}` : "Returned. No fine",
+          );
+          render();
+        });
+      render();
+    </script>
+  </body>
+</html>
