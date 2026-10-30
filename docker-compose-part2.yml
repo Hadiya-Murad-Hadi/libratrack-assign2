@@ -1,0 +1,40 @@
+services:
+  db:
+    image: mysql:8.0
+    container_name: libratrack_part2_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: LibraDBPart2Secure
+      MYSQL_DATABASE: libratrack
+    volumes:
+      - libratrack_part2_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-pLibraDBPart2Secure"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    image: node:20-alpine
+    container_name: libratrack_part2_app
+    restart: unless-stopped
+    working_dir: /app
+    volumes:
+      - ./:/app
+    command: sh -c "npm install --omit=dev && npm start"
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASSWORD: LibraDBPart2Secure
+      DB_NAME: libratrack
+      JWT_SECRET: change-this-to-a-long-random-secret
+      PORT: 8080
+    ports:
+      - "8302:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  libratrack_part2_data:
