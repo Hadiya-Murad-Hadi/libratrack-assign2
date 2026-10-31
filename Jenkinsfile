@@ -17,7 +17,7 @@ pipeline {
                 }
             }
             steps {
-                sh 'npm install --omit=dev'
+                sh 'npm_config_cache=/tmp/npm-cache npm install --omit=dev'
                 sh 'node --check server.js'
             }
         }
